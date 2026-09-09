@@ -43,7 +43,13 @@ TEST_PAGE_HTML = """
           body: JSON.stringify({ text: text })
         });
         if (!res.ok) {
-          const errText = await res.text();
+          let errText;
+          try {
+            const errJson = await res.json();
+            errText = errJson.error || JSON.stringify(errJson);
+          } catch (parseErr) {
+            errText = await res.text();
+          }
           throw new Error('Server returned ' + res.status + ': ' + errText);
         }
         const blob = await res.blob();
@@ -100,19 +106,18 @@ def synthesize():
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
-    buffer = io.BytesIO()
-    with wave.open(buffer, "wb") as wav_file:
-        wav_file.setnchannels(1)
-        wav_file.setsampwidth(2)  # 16-bit
-        wav_file.setframerate(voice.config.sample_rate)
-        for audio_chunk in voice.synthesize_stream_raw(text):
-            wav_file.writeframes(audio_chunk)
-
-    buffer.seek(0)
-    return send_file(buffer, mimetype="audio/wav")
+    try:
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as wav_file:
+            voice.synthesize_wav(text, wav_file)
+        buffer.seek(0)
+        return send_file(buffer, mimetype="audio/wav")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-    
