@@ -2,12 +2,63 @@ import os
 import io
 import wave
 
-from flask import Flask, request, send_file, jsonify
+from flask import Flask, request, send_file, jsonify, Response
 from flask_cors import CORS
 from piper import PiperVoice
 
 app = Flask(__name__)
 CORS(app)  # allows botprana.netlify.app (or any origin) to call this server
+
+TEST_PAGE_HTML = """
+<!doctype html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Her Voice — Test</title>
+  <style>
+    body { font-family: sans-serif; background: #1B1420; color: #F2E9E4; padding: 24px; max-width: 480px; margin: 0 auto; }
+    h1 { font-size: 20px; }
+    textarea { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #444; background: #2A1F33; color: #F2E9E4; font-size: 15px; box-sizing: border-box; }
+    button { width: 100%; padding: 14px; margin-top: 12px; border-radius: 10px; border: none; background: #E8A87C; color: #1B1420; font-weight: bold; font-size: 15px; }
+    #status { margin-top: 12px; font-size: 13px; color: #C9B8C4; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>Test your cloned voice</h1>
+  <p>This page talks directly to this server — no main app, no brain, no CORS involved. Good for isolating whether the voice itself works.</p>
+  <textarea id="text" rows="3" placeholder="Type something to hear it...">வணக்கம், நான் நலமா இருக்கேன்.</textarea>
+  <button onclick="speak()">Generate & Play</button>
+  <div id="status"></div>
+  <audio id="player" controls style="width:100%; margin-top:12px; display:none;"></audio>
+  <script>
+    async function speak() {
+      const text = document.getElementById('text').value;
+      const statusEl = document.getElementById('status');
+      const player = document.getElementById('player');
+      statusEl.textContent = 'Generating... (first request after idle may take 30-50s)';
+      try {
+        const res = await fetch('/synthesize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text })
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error('Server returned ' + res.status + ': ' + errText);
+        }
+        const blob = await res.blob();
+        player.src = URL.createObjectURL(blob);
+        player.style.display = 'block';
+        player.play();
+        statusEl.textContent = 'Done.';
+      } catch (err) {
+        statusEl.textContent = 'Error: ' + err.message;
+      }
+    }
+  </script>
+</body>
+</html>
+"""
 
 MODEL_PATH = "my_voice.onnx"
 CONFIG_PATH = "my_voice.onnx.json"
@@ -36,7 +87,9 @@ print("Voice model loaded.")
 
 @app.route("/", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "message": "Her Assistant voice server is running."})
+    # Built-in test page — visit this URL directly in a browser to test the
+    # voice with no dependency on the main app, CORS, or the brain at all.
+    return Response(TEST_PAGE_HTML, mimetype="text/html")
 
 
 @app.route("/synthesize", methods=["POST"])
