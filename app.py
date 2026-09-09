@@ -3,9 +3,11 @@ import io
 import wave
 
 from flask import Flask, request, send_file, jsonify
+from flask_cors import CORS
 from piper import PiperVoice
 
 app = Flask(__name__)
+CORS(app)  # allows botprana.netlify.app (or any origin) to call this server
 
 MODEL_PATH = "my_voice.onnx"
 CONFIG_PATH = "my_voice.onnx.json"
@@ -60,3 +62,4 @@ def synthesize():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+    
